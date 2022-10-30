@@ -1,0 +1,278 @@
+<!doctype html>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WebCodec MP4 frame extration demo</title>
+  <meta http-equiv="origin-trial" content="ArdlZia9G23wi6S2x/vVoTla5x9r1wtreSPqhUq36tpGH7HRmAkPgpBnpkfePFeClDJDzzYAhtDPoI5hJioArAYAAABjeyJvcmlnaW4iOiJodHRwczovL3czYy5naXRodWIuaW86NDQzIiwiZmVhdHVyZSI6IldlYkNvZGVjcyIsImV4cGlyeSI6MTYzODQwMzE5OSwiaXNTdWJkb21haW4iOnRydWV9" />
+</head>
+<body>
+  <p>
+    This demo extracts all frames from an MP4 file and renders them to a canvas as fast as possible. It uses <a href="https://github.com/gpac/mp4box.js/">mp4box.js</a> to parse and demux the file.
+  </p>
+  <div>
+  <div id=controls>
+    <p id=loading>Loading...</p>
+    <button id="button">click</button>
+    <label for=volume>Volume</label>
+    <input id=volume type=range value=0.8 min=0 max=1.0 step=0.01></input>
+  </div>
+</div>
+  <canvas width=1280 height=720></canvas>
+
+</body>
+
+<script src="EBML.js"></script>
+<script type="module">
+  import { MyAudioContext } from "./audiocontext.js";
+  import { WebMWriter } from "./webm-writer.js";
+  window.$ = document.querySelector.bind(document);
+  var demuxDecodeWorker;
+
+  var canvas = document.querySelector("canvas");
+  var offscreen = canvas.transferControlToOffscreen();
+  document.body.appendChild(canvas);
+
+  var frameCount = 0;
+  var startTime;
+
+  let writer = new WebMWriter();
+  let Button = $('button');
+
+  demuxDecodeWorker = new Worker("./demux_decode_worker.js");
+  const webm_worker = new Worker('./webm-worker.js');
+
+  button.addEventListener('click', ()=>{
+    demuxDecodeWorker.postMessage({type: 'initialize',
+                                    canvas: offscreen},
+                                    {transfer:[offscreen]});
+  })
+
+
+
+  let initResolver = null;
+  let initDone = new Promise(resolver => (initResolver = resolver));  
+  let myAudioContext = new MyAudioContext();
+  let triggerTime = 0;
+
+  //监听demuxDecodeWorker
+  demuxDecodeWorker.addEventListener('message',async  (e) => {
+    const msg = e.data;
+    switch (msg.type){
+    case 'initialize-done':
+      await writer.start('video-transcode.webm');
+      myAudioContext.initialize();
+    // audioController.initialize(e.data.sampleRate, e.data.channelCount,
+    //                     e.data.sharedArrayBuffer);
+      initResolver();
+      initResolver = null;
+      demuxDecodeWorker.postMessage({type: 'start-transcode'});
+      break;
+    case 'error':
+      onerror(msg.err);
+      break;
+    case 'exit':
+      if (++num_exit === 2)
+        webm_worker.postMessage({type: 'end'});
+      break;
+    default:
+      triggerTime++;
+      console.log(triggerTime);
+      webm_worker.postMessage(msg, [msg.data]);
+      break;
+  }
+});
+  await initDone;
+
+function onerror(e) {
+  console.error(e);
+}
+
+  webm_worker.onerror = onerror;
+    webm_worker.onmessage = async ev => {
+        const msg = ev.data;
+        switch (msg.type) {
+          //原本的exit由外部事件触发，在这里应该是根据demux_decode_worker的事件触发
+            case 'exit':
+                //这个是最后一步执行的
+                console.log('demo: exit')
+                if (msg.code !== 0) {
+                    onerror(`muxer exited with status ${msg.code}`);
+                }
+                //本方法并不会等待 worker 去完成它剩余的操作；worker 将会被立刻停止
+                webm_worker.terminate();
+                video_worker.terminate();
+                audio_worker.terminate();
+                exited = true;
+
+                //这里根据按钮是否被按下来决定是否要记录，现在改为需要记录，并且默认采用inmem记录的方式
+                // if (record_el.checked) {
+                    const r = await writer.finish();
+                    rec_info.innerText = `Finished: Duration ${writer.duration}ms, Size ${writer.size} bytes`;
+                    // if (inmem_el.checked) {
+                        const blob = new Blob(r, { type: 'video/webm' });
+                        const a = document.createElement('a');
+                        const filename = 'video-transcode.webm';
+                        a.textContent = filename;
+                        a.href = URL.createObjectURL(blob);
+                        a.download = filename;
+                        //这里可能会有问题，因为要直接操作document
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                    // } else {
+                    //     rec_info.innerText += `, Filename ${writer.name}, Cues at ${r ? 'start' : 'end'}`;
+                    // }
+                // }
+
+                //按钮全部不需要，因此注释
+                // start_el.disabled = false;
+                // record_el.disabled = false;
+                // pcm_el.disabled = !record_el.checked;
+                // inmem_el.disabled = !record_el.checked;
+
+                break;
+
+            case 'start-stream':
+                //第八步：主线程接受到webm_worker的start stream信号
+                console.log('demo: start stream')
+                //under start-stream ,main thread post message to video_worker&audio_worker
+                //第九步：主线程发送start信息给video_worker和audio_worker
+                video_worker.postMessage({
+                    type: 'start',
+                    readable: video_readable,
+                    key_frame_interval,
+                    config: video_encoder_config
+                }, [video_readable]);
+
+                audio_worker.postMessage({
+                    type: 'start',
+                    audio: true,
+                    readable: audio_readable,
+                    config: {
+                        //只有codec是audio才有可能有pcm的标志
+                        codec: pcm_el.checked ? 'pcm' : 'opus',
+                        bitrate: 128 * 1000,
+                        sampleRate: audio_settings.sampleRate,
+                        numberOfChannels: audio_settings.channelCount
+                    }
+                }, [audio_readable]);
+
+                stop_el.disabled = false;
+
+                break;
+
+            case 'muxed-data':
+              //理论上来说，获得muxed-data时，就代表一个encodedchunkdata经过了decode-encode再mux的过程了
+                console.log('demo: muxed-data')
+                //默认要记录，因此checked注释
+                // if (record_el.checked) {
+                await writer.write(msg.data);
+                console.log(`Recorded ${writer.size} bytes`);
+                // }
+                // queue.push(msg.data);
+                // if (!pcm_el.checked) {
+                //     remove_append();
+                // }
+                break;
+
+            case 'stats':
+                console.log('demo: stats')
+                console.log(msg.data);
+                break;
+
+            case 'error':
+                console.log('demo: error')
+                onerror(msg.detail);
+                break;
+        }
+    };
+
+
+  function start(){
+
+  }
+
+
+  //以下全部是关于播放的部分，注释
+  // let playButton = $('button');
+  // let loadingElement = $('#loading');
+  // playButton.disabled = false;
+  // loadingElement.innerText = 'Ready! Click play.'
+
+
+  //播放按钮点击后触发的事件
+  // playButton.onclick = () => {
+  //   if (playButton.innerText == "Play") {
+  //     console.log("playback start");
+
+  //     // Audio can only start in reaction to a user-gesture.
+  //     //必须要在用户事件触发之下，audiocontroller才能够执行
+  //     myAudioContext.play().then(() => console.log('playback started'));
+  //     //mediaworker执行操作
+  //     demuxDecodeWorker.postMessage({
+  //         command: 'play',
+  //         mediaTimeSecs: myAudioContext.getMediaTimeInSeconds(),
+  //         mediaTimeCapturedAtHighResTimestamp:
+  //             performance.now() + performance.timeOrigin
+  //     });
+
+  //     //本地方法
+  //     sendMediaTimeUpdates(true);
+
+  //     playButton.innerText = "Pause";
+
+  //   } else {
+  //     console.log("playback pause");
+  //     // Resolves when audio has effectively stopped, this can take some time if
+  //     // using bluetooth, for example.
+  //     //解决音频停止时的问题，
+  //     myAudioContext.pause().then(() => { console.log("playback paused");
+  //       //等待中止工作线程，上下文挂起，这是为了确保在播放音频的时候填充audio buffer
+  //       // Wait to pause worker until context suspended to ensure we continue
+  //       // filling audio buffer while audio is playing.
+  //       demuxDecodeWorker.postMessage({command: 'pause'});
+  //     });
+
+  //     sendMediaTimeUpdates(false);
+
+  //     playButton.innerText = "Play"
+  //   }
+  // }
+
+
+//周期性发送当前媒体时间
+//这一步操作原本应该放在worker上面进行
+//但是由于webaudio自身的限制，所以。。
+// Helper function to periodically send the current media time to the media
+// worker. Ideally we would instead compute the media time on the worker thread,
+// but this requires WebAudio interfaces to be exposed on the WorkerGlobalScope.
+// See https://github.com/WebAudio/web-audio-api/issues/2423
+// let mediaTimeUpdateInterval = null;
+// function sendMediaTimeUpdates(enabled) {
+//   if (enabled) {
+//     // Local testing shows this interval (1 second) is frequent enough that the
+//     // estimated media time between updates drifts by less than 20 msec. Lower
+//     // values didn't produce meaningfully lower drift and have the downside of
+//     // waking up the main thread more often. Higher values could make av sync
+//     // glitches more noticeable when changing the output device.
+//     //1秒钟的间隔已经足够了
+//     const UPDATE_INTERVAL = 1000;
+//     mediaTimeUpdateInterval = setInterval(() => {
+//       //每一秒钟，主线程向worker发送一个信息，type为update-media-time
+//       demuxDecodeWorker.postMessage({
+//           command: 'update-media-time',
+//           mediaTimeSecs: myAudioContext.getMediaTimeInSeconds(),
+//           mediaTimeCapturedAtHighResTimestamp:
+//               performance.now() + performance.timeOrigin
+//       });
+//     }, UPDATE_INTERVAL);
+//   } else {
+//     //如果enabled为false，那么清除这个定时函数
+//     clearInterval(mediaTimeUpdateInterval);
+//     mediaTimeUpdateInterval = null;
+//   }
+// }
+</script>
+
+</html>
+
