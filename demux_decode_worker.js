@@ -53,6 +53,8 @@ function passdata(ev){
       else
         audioConfig = msg.config;
         //这里先不加入音频
+      console.log('videoconfig')
+      console.log(videoConfig)
       if(++workerNum === 1){
       self.postMessage({
         type: 'initialize-done',

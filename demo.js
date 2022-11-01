@@ -8,9 +8,10 @@ export class WebmMuxer{
     }
 
     encoder_constraints = {
-        codec: 'av01.0.08M.08',
-        width: 1080,
-        height: 1920,
+        // codec: 'av01.0.08M.08',
+        codec: 'vp09.00.10.08.01',
+        width: 640,
+        height: 360,
         bitrate: 2500 * 1000,
         framerate: 30,
         latencyMode: 'realtime'
@@ -19,9 +20,12 @@ export class WebmMuxer{
         if(demuxer.streamType === AUDIO_STREAM_TYPE) {
 
         } else {
-            this.codec = 'av01.0.00M.08',//这里先写死
-            this.displayWidth = demuxer.getDecoderConfig().displayWidth;
-            this.displayHeight = demuxer.getDecoderConfig().displayHeight;
+            // this.codec = 'av01.0.00M.08',//这里先写死
+            this.codec = 'vp09.00.10.08.01'
+            // this.displayWidth = demuxer.getDecoderConfig().displayWidth;
+            // this.displayHeight = demuxer.getDecoderConfig().displayHeight;
+            this.width= 640,
+            this.height= 360,
             this.bitrate = 2500 * 1000;
             this.framerate = 30;
             this.latencyMode = 'realtime';
@@ -56,6 +60,8 @@ export class WebmMuxer{
         //     }) || await max_video_config(encoder_constraints);
         // }
 
+          console.log('in getencoder config');
+          console.log(this.encoder_constraints)
             return await max_video_config({
                 ...this.encoder_constraints,
                 ratio: 1920 / 1080

@@ -60,7 +60,9 @@
     const msg = e.data;
     switch (msg.type){
     case 'initialize-done':
-      await writer.start('video-transcode.webm');
+      console.log('demo: initialize-done')
+      await writer.start('video.webm');
+      console.log('writer open over')
       myAudioContext.initialize();
     // audioController.initialize(e.data.sampleRate, e.data.channelCount,
     //                     e.data.sharedArrayBuffer);

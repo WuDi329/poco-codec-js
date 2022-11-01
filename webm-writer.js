@@ -14,7 +14,10 @@ export class WebMWriter {
     }
 
     async start(suggestedName) {
+        console.log('writer start file')
         if (suggestedName) {
+            console.log(suggestedName);
+            console.log('next showhandler')
             this.handle = await window.showSaveFilePicker({
                 suggestedName,
                 types: [{
@@ -24,6 +27,7 @@ export class WebMWriter {
                     }
                 }]
             });
+            console.log('handler over')
             this.name = this.handle.name;
             this.writable = await this.handle.createWritable();
             await this.writable.write(new ArrayBuffer(this.options.metadata_reserve_size));

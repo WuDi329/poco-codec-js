@@ -19,6 +19,14 @@ function debugLog(msg) {
   console.debug(msg);
 }
 
+const vp9_params = {
+  profile: 0,
+  level: 10,
+  bit_depth: 8,
+  // chroma_subsampling: chroma_el.value ? 2 : 1
+  chroma_subsampling: 1
+};
+
 onmessage = async function (e) {
   const msg = e.data;
   if(videoTranscoder === null)
@@ -41,8 +49,10 @@ onmessage = async function (e) {
         config: {
           width: encodeconfig.width,
           height: encodeconfig.height,
-          frame_rate: encodeconfig.frameRate,
-          codec_id: encodeconfig.codec,
+          frame_rate: encodeconfig.framerate,
+          // codec_id: encodeconfig.codec,
+          codec_id: 'V_VP9',
+          ...vp9_params
         }
       });
       break;
@@ -74,7 +84,8 @@ class VideoTranscoder {
     await this.demuxer.initialize(VIDEO_STREAM_TYPE);
     const decodeconfig = this.demuxer.getDecoderConfig();
     const encodeconfig = await this.muxer.getEncoderConfig();
-    console.log(decodeconfig);
+    // console.log(decodeconfig);
+    console.log('encodeconfig');
     console.log(encodeconfig)
 
     //因为canvas不能传输，而且确实用不到，注释了canvas
