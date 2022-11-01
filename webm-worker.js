@@ -65,13 +65,13 @@ function send_msg(msg) {
 
     const duration = new ArrayBuffer(8);
     new DataView(duration).setBigUint64(0, BigInt(msg.duration || 0), true);
-        console.log('send header to webm_muxer')
+        // console.log('send header to webm_muxer')
     send_data(header);
-    console.log('send timestamp to webm_muxer')
+    // console.log('send timestamp to webm_muxer')
     send_data(timestamp);
-    console.log('send duration to webm_muxer')
+    // console.log('send duration to webm_muxer')
     send_data(duration);
-    console.log('send msg.data to webm_muxer')
+    // console.log('send msg.data to webm_muxer')
     send_data(msg.data);
 }
 
@@ -284,7 +284,7 @@ onmessage = function (e) {
     switch (msg.type) {
         case 'video-data':
             ////第12步：接收到主线程转发的audio-data之后，对他进行进一步处理
-            console.log('webme-worker: case video-data is triggered')
+            // console.log('webme-worker: case video-data is triggered')
             //如果metadata已经存在
             if (metadata.video) {
                 if (first_video_timestamp === null) {
@@ -358,7 +358,7 @@ onmessage = function (e) {
                         //第三步：webm_worker监听到webm_muxer发送的ready消息
                         console.log('webm-worker: case ready is triggered')
                         //第四步：webm_worker将主线程的msg发送给webm_muxer，msg的type为start
-                        console.log(msg)
+                        // console.log(msg)
                         webm_muxer.postMessage(msg);
                         break;
 
@@ -387,7 +387,7 @@ onmessage = function (e) {
 
                     ///forward the message about stats
                     case 'stats':
-                        console.log('webm-worker: case stats is triggered')
+                        // console.log('webm-worker: case stats is triggered')
                         self.postMessage(msg2);
                         break;
                     //?

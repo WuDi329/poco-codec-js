@@ -28,6 +28,7 @@ export class MP4PullDemuxer extends PullDemuxerBase {
   async initialize(streamType) {
     this.source = new MP4Source(this.fileUri);
     this.readySamples = [];
+    this.over = false;
     this._pending_read_resolver = null;
     this.streamType = streamType;
 
@@ -62,17 +63,24 @@ export class MP4PullDemuxer extends PullDemuxerBase {
   }
 
   async getNextChunk() {
-    let sample = await this._readSample();
-    const type = sample.is_sync ? "key" : "delta";
-    const pts_us = (sample.cts * 1000000) / sample.timescale;
-    const duration_us = (sample.duration * 1000000) / sample.timescale;
-    const ChunkType = this.streamType == AUDIO_STREAM_TYPE ? EncodedAudioChunk : EncodedVideoChunk;
-    return new ChunkType({
-      type: type,
-      timestamp: pts_us,
-      duration: duration_us,
-      data: sample.data
-    });
+    //第一步：直接请求getNextChunk
+    // console.log(this.over)
+    //这里先注释，搞清楚为什么第一帧不见了
+
+      let sample = await this._readSample();
+      if(sample !== null){
+        const type = sample.is_sync ? "key" : "delta";
+        const pts_us = (sample.cts * 1000000) / sample.timescale;
+        const duration_us = (sample.duration * 1000000) / sample.timescale;
+        const ChunkType = this.streamType == AUDIO_STREAM_TYPE ? EncodedAudioChunk : EncodedVideoChunk;
+        return new ChunkType({
+          type: type,
+          timestamp: pts_us,
+          duration: duration_us,
+          data: sample.data
+        });
+    }else
+      return null;
   }
 
   _getAvcDescription(avccBox) {
@@ -94,36 +102,60 @@ export class MP4PullDemuxer extends PullDemuxerBase {
   }
 
   async _readSample() {
+    //第二步：从_readSample获取
     console.assert(this.selectedTrack);
     console.assert(!this._pending_read_resolver);
 
+    //如果readySample.length不为0，就返回
     if (this.readySamples.length) {
       return Promise.resolve(this.readySamples.shift());
     }
+    //如果readySample.length为0，就再去上一层寻找
+    console.log('_pending_read_resolver....')
+    console.log('this.over')
+    console.log(this.over);
 
     let promise = new Promise((resolver) => { this._pending_read_resolver = resolver; });
+    // console.log('this._pending_read_resolver');
+    // console.log(this._pending_read_resolver);
+    
     console.assert(this._pending_read_resolver);
-    this.source.start(this._onSamples.bind(this));
-    return promise;
 
+    //bind() 方法创建一个新的函数，在 bind() 被调用时，这个新函数的 this 被指定为 bind() 的第一个参数，而其余参数将作为新函数的参数，供调用时使用。
+    if(!this.over){
+      this.source.start(this._onSamples.bind(this));
+    }else{
+      this._pending_read_resolver(null);
+      this._pending_read_resolver = null;
+    }
+    return promise;
   }
 
   _onSamples(samples) {
+    
     // debugger;
     const SAMPLE_BUFFER_TARGET_SIZE = 50;
 
-    this.readySamples.push(...samples);
-    if (this.readySamples.length >= SAMPLE_BUFFER_TARGET_SIZE)
-      this.source.stop();
-
-    let firstSampleTime = samples[0].cts * 1000000 / samples[0].timescale ;
-    debugLog(`adding new ${samples.length} samples (first = ${firstSampleTime}). total = ${this.readySamples.length}`);
-
-    if (this._pending_read_resolver) {
-      this._pending_read_resolver(this.readySamples.shift());
-      this._pending_read_resolver = null;
+    if(samples.length < 1000) {
+      this.over = true;
+      console.log('已经取完全部samples了')
     }
-  }
+      console.log('samples长度大于0')
+      this.readySamples.push(...samples);
+      if (this.readySamples.length >= SAMPLE_BUFFER_TARGET_SIZE)
+        this.source.stop();
+
+      let firstSampleTime = samples[0].cts * 1000000 / samples[0].timescale ;
+      console.log(`adding new ${samples.length} samples (first = ${firstSampleTime}). total = ${this.readySamples.length}`);
+
+      if (this._pending_read_resolver) {
+        const current = this.readySamples.shift();
+        // console.log(current)
+        this._pending_read_resolver(current);
+        this._pending_read_resolver = null;
+      }
+    }
+  
 }
 
 class MP4Source {
@@ -196,10 +228,13 @@ class MP4Source {
     return this.file.moov.traks[0].mdia.minf.stbl.stsd.entries[0].avcC
   }
 
-  //这里之前写成了this.onsamples，传入的参数也不对，这里看不太明白
+ //source.start
+ //    this.source.start(this._onSamples.bind(this));
+ //表示可以开始样本处理（分段或提取）。 已经收到的样本数据将被处理，新的缓冲区追加操作也将触发样本处理。
   start(onSamples) {
     console.log("mp4file started")
     // debugger;
+    //_onSamples ： this._onSamples
     this._onSamples = onSamples;
     // this.file.setExtractionOptions(track.id);
     this.file.start();

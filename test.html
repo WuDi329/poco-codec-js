@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<head>
+123123
+</head>
+
+<body>
+lalalal
+<button id="button">1231321</button>
+</body>
+
+<script>
+    _pending_read_resolver = null;
+    let button = document.querySelector('button');
+    let promise = new Promise(function(resolve, reject) {
+        // 不花时间去做这项工作
+        resolve(123); // 立即给出结果：123
+    });
+    let arr = [];
+
+    let promise2 = new Promise(function(resolve){
+        _pending_read_resolver = resolve;
+    })
+
+    console.assert(_pending_read_resolver)
+    console.log(promise2)
+    console.log(_pending_read_resolver)
+// console.log(promise)
+    button.addEventListener('click', ()=>{
+        if(_pending_read_resolver) {
+            // _pending_read_resolver =;
+            _pending_read_resolver(null);
+            _pending_read_resolver = null;
+        }
+        console.log(promise2)
+    })
+
+    console.log(_pending_read_resolver)
+</script>

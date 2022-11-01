@@ -6,10 +6,10 @@ importScripts('./mp4box.all.min.js');
 
 const VIDEO_STREAM_TYPE = 1;
 const AUDIO_STREAM_TYPE = 0;
-const FRAME_BUFFER_TARGET_SIZE = 3;
+const FRAME_BUFFER_TARGET_SIZE = 5;
 const ENABLE_DEBUG_LOGGING = false;
-var frameCount = 0;
 var framecount = 0;
+var chunkCount = 0;
 
 let videoTranscoder = null;
 
@@ -30,12 +30,24 @@ onmessage = async function (e) {
       let videoDemuxer =  new demuxer.MP4PullDemuxer('./bbb_video_avc_frag.mp4');
       let WebmMuxer = await import ('./demo.js');
       let muxer = new WebmMuxer.WebmMuxer();
-      await videoTranscoder.initialize(videoDemuxer, muxer);
+      //这里可能要重写
+      //将提取出几个config的方法单独挪出来，直接将config传入initialize
+      const encodeconfig = await videoTranscoder.initialize(videoDemuxer, muxer);
       console.log("transcoder: videoTranscoder initialize finished");
       console.log('initialize done');
-      this.self.postMessage({type: 'initialize-done'});
+      this.self.postMessage({
+        type: 'initialize-done',
+        workerType : 'video',
+        config: {
+          width: encodeconfig.width,
+          height: encodeconfig.height,
+          frame_rate: encodeconfig.frameRate,
+          codec_id: encodeconfig.codec,
+        }
+      });
       break;
     case 'start-transcode':
+      //初始调用fillFrameBuffer
       console.log('transcoder is below')
       console.log(videoTranscoder.encoder);
       console.log(videoTranscoder.decoder);
@@ -57,6 +69,7 @@ class VideoTranscoder {
 
     this.demuxer = demuxer;
     this.muxer = muxer;
+    this.over = false;
     //根据VIDEO_STREAM_TYPE进行初始化，这里进行了demuxer的初始化
     await this.demuxer.initialize(VIDEO_STREAM_TYPE);
     const decodeconfig = this.demuxer.getDecoderConfig();
@@ -92,6 +105,8 @@ class VideoTranscoder {
     console.assert(VideoEncoder.isConfigSupported(encodeconfig))
     this.encoder.configure(encodeconfig);
     console.log("decoder & encoder configured finished")
+    //要将相关参数返回去，这里return
+    return encodeconfig;
     //初始化之后进行fillFrameBuffer
     //这里先注释
     // this.fillFrameBuffer();
@@ -115,47 +130,10 @@ class VideoTranscoder {
     this.paint(frame);
   }
 
-  //传入时间戳，返回距离其时间最近的frame
-  chooseFrame(timestamp) {
-    if (this.frameBuffer.length == 0)
-      return null;
-
-    let minTimeDelta = Number.MAX_VALUE;
-    let frameIndex = -1;
-
-    for (let i = 0; i < this.frameBuffer.length; i++) {
-      //计算传入的timestamp和buffer中每一个frame的timestamp的绝对值
-      let time_delta = Math.abs(timestamp - this.frameBuffer[i].timestamp);
-      if (time_delta < minTimeDelta) {
-        minTimeDelta = time_delta;
-        frameIndex = i;
-      } else {
-        break;
-      }
-    }
-
-    //确保不是-1
-    console.assert(frameIndex != -1);
-
-    if (frameIndex > 0)
-    //丢弃x个陈旧的frame
-      debugLog('dropping %d stale frames', frameIndex);
-
-    for (let i = 0; i < frameIndex; i++) {
-      //直到frameIndex之前的所有frame都被丢弃，然后close
-      let staleFrame = this.frameBuffer.shift();
-      staleFrame.close();
-    }
-
-    let chosenFrame = this.frameBuffer[0];
-    debugLog('frame time delta = %dms (%d vs %d)', minTimeDelta/1000, timestamp, chosenFrame.timestamp)
-    return chosenFrame;
-  }
-
   //填充framebuffer
   async fillFrameBuffer() {
     if (this.frameBufferFull()) {
-      debugLog('frame buffer full');
+      console.log('frame buffer full');
 
       //当init_resolver不为空了
       if (this.init_resolver) {
@@ -164,8 +142,9 @@ class VideoTranscoder {
         this.init_resolver = null;
       }
 
-      return;
+      setTimeout(this.fillFrameBuffer.bind(this), 20);
     }
+    
 
     // This method can be called from multiple places and we some may already
     // be awaiting a demuxer read (only one read allowed at a time).
@@ -179,22 +158,33 @@ class VideoTranscoder {
     //当已经buffer的frame和decoded序列长度都小于FRAME_BUFFER_TARGET_SIZE（3）时，就会进行getNextChunk，并且decode
     while (this.decoder.decodeQueueSize < FRAME_BUFFER_TARGET_SIZE && 
       //返回队列中挂起的解码请求数。
-        this.encoder.encodeQueueSize < FRAME_BUFFER_TARGET_SIZE) {
+        this.encoder.encodeQueueSize < FRAME_BUFFER_TARGET_SIZE && !this.over) {
+          
               //由demuxer来控制是否获取下一个chunk
               // console.log('当前的encodequeuesize');
               // console.log(this.encoder.encodeQueueSize)
               // console.log('当前的decodequeuesize');
               // console.log(this.decoder.decodeQueueSize)
       let chunk = await this.demuxer.getNextChunk();
-      // console.log(chunk);
-      this.decoder.decode(chunk);
-    }
 
+      console.log('get chunk')
+      console.log(chunk);
+      if(!chunk){
+        this.over = true; 
+      }
+      else{ 
+        chunkCount++;
+        this.decoder.decode(chunk);
+      }
+    }
     this.fillInProgress = false;
+
+    
 
     // Give decoder a chance to work, see if we saturated the pipeline.
     //这里是fillframebuffer自己调用自己，也先被我注释了
-    setTimeout(this.fillFrameBuffer.bind(this), 0);
+    if(!this.over && this.encoder.encodeQueueSize === 0)
+      setTimeout(this.fillFrameBuffer.bind(this), 0);
   }
 
   //判断frame是否满
@@ -205,8 +195,8 @@ class VideoTranscoder {
   //将frame buffer起来
   bufferFrame(frame) {
     debugLog(`bufferFrame(${frame.timestamp})`);
-    frameCount ++;
-    console.log(frameCount);
+    // frameCount ++;
+    // console.log(frameCount);
     this.encoder.encode(frame);
     //这里注释了，为了暂停bufferframe
     // this.fillFrameBuffer();
@@ -215,8 +205,8 @@ class VideoTranscoder {
   }
 
   consumeFrame(chunk) {
-    // framecount++;
-    // console.log(framecount);
+    framecount++;
+    console.log(framecount);
     //这个chunk的duration属性为0，但是也许可以通过timestamp计算出来？不知道会不会有影响？
     // console.log(chunk);
     const data = new ArrayBuffer(chunk.byteLength);
@@ -229,6 +219,19 @@ class VideoTranscoder {
       is_key: chunk.type === 'key',
       data
     }, [data]);
+    //调用的主要地方，consumeFrame处
+    if(!this.over && this.encoder.encodeQueueSize === 0)
+        this.fillFrameBuffer();
+    if(this.encoder.encodeQueueSize === 0 && this.decoder.decodeQueueSize === 0){
+      console.log(framecount)
+      console.log('framecount');
+      console.log(chunkCount);
+      console.log('chunkCount');
+      if(framecount === (chunkCount-1)){
+        self.postMessage({type: 'exit'})
+        console.log('post exit message to self...')
+      }
+    }
     // console.log(data);
     // console.log(data);
     //data等待处理

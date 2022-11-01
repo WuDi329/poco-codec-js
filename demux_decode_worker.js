@@ -14,6 +14,13 @@ let webmLoadedResolver = null;
 let videoTranscoder = null;
 let frameCount = 0;
 let playing = false;
+
+//initialize部分的判断条件，只有当它为2时，才返回initialize-done
+let workerNum = 0;
+
+//从worker中读到的Config
+let videoConfig = null;
+let audioConfig = null;
 let modulesReady = new Promise(resolver => (moduleLoadedResolver = resolver));
 // 不需要这一步，因为webm是以worker形式导入的。
 // let webmReady = new Promise(resolver => (webmLoadedResolver = resolver));
@@ -41,7 +48,21 @@ function passdata(ev){
   switch (msg.type) {
     case 'initialize-done':
       console.log('demux_worker:get transcoder done')
-      self.postMessage({type: 'initialize-done'});
+      if(msg.workerType === 'video')
+        videoConfig = msg.config;
+      else
+        audioConfig = msg.config;
+        //这里先不加入音频
+      if(++workerNum === 1){
+      self.postMessage({
+        type: 'initialize-done',
+        webm_stats_interval: 1000,
+        webm_metadata: {
+          max_cluster_duration: BigInt(2000000000),
+          video: videoConfig,
+          // audio: audioConfig
+        }});
+      }
       break;
     case 'error':
       self.postMessage({
@@ -50,6 +71,7 @@ function passdata(ev){
       })
       break;
     case 'exit':
+      console.log('decode worker: get exit from video-transcoder');
       self.postMessage(msg);
       break;
     default:
@@ -93,7 +115,13 @@ self.addEventListener('message', async function(e) {
         type: 'start-transcode'
       })
       break;
-    
+    case 'terminate':
+      console.log('decode-worker: terminate触发');
+      video_Worker.terminate();
+      //这里先注释，理由同上
+      // audio_Worker.terminate();    
+      this.self.postMessage('terminate');
+      break;
     // 目前不需要这些其他情况
     // case 'play':
     //   playing = true;

@@ -14,8 +14,6 @@ export class WebMWriter {
     }
 
     async start(suggestedName) {
-        let extract = EBML.EBML;
-        console.log(extract);
         if (suggestedName) {
             this.handle = await window.showSaveFilePicker({
                 suggestedName,
@@ -37,8 +35,6 @@ export class WebMWriter {
 
         this.reader = new EBML.Reader();
         this.decoder = new EBML.Decoder();
-        console.log(this.reader);
-        console.log(this.decoder)
     }
 
     async write(data) {
