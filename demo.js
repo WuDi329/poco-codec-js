@@ -26,7 +26,7 @@ export class WebmMuxer{
             // this.displayHeight = demuxer.getDecoderConfig().displayHeight;
             this.width= 640,
             this.height= 360,
-            this.bitrate = 2500 * 1000;
+            this.bitrate = 2500 * 100;
             this.framerate = 30;
             this.latencyMode = 'realtime';
         }
@@ -64,7 +64,7 @@ export class WebmMuxer{
           console.log(this.encoder_constraints)
             return await max_video_config({
                 ...this.encoder_constraints,
-                ratio: 1920 / 1080
+                ratio: 640 / 360
             }) || await max_video_config(this.encoder_constraints);
       }
 }

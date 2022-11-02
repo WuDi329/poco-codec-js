@@ -33,7 +33,7 @@ onmessage = async function (e) {
     videoTranscoder = new VideoTranscoder();
   switch (msg.type) {
     case 'initialize':
-      console.log('transcoder: case initialize is triggered');
+      console.log('video transcoder: case initialize is triggered');
       let demuxer = await import('./mp4_demuxer.js');
       let videoDemuxer =  new demuxer.MP4PullDemuxer('./bbb_video_avc_frag.mp4');
       let WebmMuxer = await import ('./demo.js');
@@ -41,8 +41,8 @@ onmessage = async function (e) {
       //这里可能要重写
       //将提取出几个config的方法单独挪出来，直接将config传入initialize
       const encodeconfig = await videoTranscoder.initialize(videoDemuxer, muxer);
-      console.log("transcoder: videoTranscoder initialize finished");
-      console.log('initialize done');
+      console.log("video transcoder: Transcoder initialize finished");
+      console.log('video transcoder: initialize done');
       this.self.postMessage({
         type: 'initialize-done',
         workerType : 'video',
@@ -58,11 +58,12 @@ onmessage = async function (e) {
       break;
     case 'start-transcode':
       //初始调用fillFrameBuffer
-      console.log('transcoder is below')
+      console.log('video transcoder is below')
       console.log(videoTranscoder.encoder);
       console.log(videoTranscoder.decoder);
-      console.log('transcoder: case start-transcode is triggered');
+      console.log('video transcoder: case start-transcode is triggered');
       videoTranscoder.fillFrameBuffer()
+      break;
   }
 }
 
@@ -88,12 +89,6 @@ class VideoTranscoder {
     console.log('encodeconfig');
     console.log(encodeconfig)
 
-    //因为canvas不能传输，而且确实用不到，注释了canvas
-    // this.canvas = canvas;
-    // this.canvas.width = decodeconfig.displayWidth;
-    // this.canvas.height = decodeconfig.displayHeight;
-    // this.canvasCtx = canvas.getContext('2d');
-
     this.decoder = new VideoDecoder({
       //每进来一个frame，将其缓存进frameBuffer中
       output: this.bufferFrame.bind(this),
@@ -115,7 +110,7 @@ class VideoTranscoder {
     console.log(this.encoder)
     console.assert(VideoEncoder.isConfigSupported(encodeconfig))
     this.encoder.configure(encodeconfig);
-    console.log("decoder & encoder configured finished")
+    // console.log("decoder & encoder configured finished")
     //要将相关参数返回去，这里return
     return encodeconfig;
     //初始化之后进行fillFrameBuffer
@@ -144,14 +139,15 @@ class VideoTranscoder {
   //填充framebuffer
   async fillFrameBuffer() {
     if (this.frameBufferFull()) {
-      console.log('frame buffer full');
+      console.log('video frame buffer full');
 
       //当init_resolver不为空了
-      if (this.init_resolver) {
-        //执行init_resolver
-        this.init_resolver();
-        this.init_resolver = null;
-      }
+      //这里应该变不了，注意这里改了，如果报错了再把这里调整一下
+      // if (this.init_resolver) {
+      //   //执行init_resolver
+      //   this.init_resolver();
+      //   this.init_resolver = null;
+      // }
 
       setTimeout(this.fillFrameBuffer.bind(this), 20);
     }
@@ -178,8 +174,8 @@ class VideoTranscoder {
               // console.log(this.decoder.decodeQueueSize)
       let chunk = await this.demuxer.getNextChunk();
 
-      console.log('get chunk')
-      console.log(chunk);
+      // console.log('get chunk')
+      // console.log(chunk);
       if(!chunk){
         this.over = true; 
       }
@@ -217,7 +213,7 @@ class VideoTranscoder {
 
   consumeFrame(chunk) {
     framecount++;
-    console.log(framecount);
+    // console.log(framecount);
     //这个chunk的duration属性为0，但是也许可以通过timestamp计算出来？不知道会不会有影响？
     // console.log(chunk);
     const data = new ArrayBuffer(chunk.byteLength);
@@ -233,14 +229,18 @@ class VideoTranscoder {
     //调用的主要地方，consumeFrame处
     if(!this.over && this.encoder.encodeQueueSize === 0)
         this.fillFrameBuffer();
-    if(this.encoder.encodeQueueSize === 0 && this.decoder.decodeQueueSize === 0){
-      console.log(framecount)
-      console.log('framecount');
-      console.log(chunkCount);
-      console.log('chunkCount');
+    if(this.encoder.encodeQueueSize === 0 && this.decoder.decodeQueueSize === 0 && this.over){
+      // console.log(framecount)
+      // console.log('video framecount');
+      // console.log(chunkCount);
+      // console.log('video chunkCount');
       if(framecount === (chunkCount-1)){
-        self.postMessage({type: 'exit'})
+        console.log('current video')
+        console.log(framecount)
+        console.log(chunkCount)
         console.log('post exit message to self...')
+        console.log(framecount)
+        self.postMessage({type: 'exit'})
       }
     }
     // console.log(data);

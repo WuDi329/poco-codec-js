@@ -26,26 +26,43 @@ export class MP4PullDemuxer extends PullDemuxerBase {
   }
 
   async initialize(streamType) {
+    
+    // console.log('this.fileUri')
+    // console.log(this.fileUri)
     this.source = new MP4Source(this.fileUri);
+    // console.log(streamType);
+
     this.readySamples = [];
     this.over = false;
     this._pending_read_resolver = null;
     this.streamType = streamType;
 
+    
+    // if(streamType === 0)
+    //   console.log('audio ready for tracks')
+
     //不管是videotrack还是audiotrack都ready了
     await this._tracksReady();
+
+    // if(streamType === 0)
+    //   console.log('audio finished tracks')
 
     if (this.streamType == AUDIO_STREAM_TYPE) {
       this._selectTrack(this.audioTrack);
     } else {
       this._selectTrack(this.videoTrack);
     }
-    console.log('demuxer initialize finished')
+    // console.log('demuxer initialize finished')
   }
 
   getDecoderConfig() {
     //判断当前流类型
     if (this.streamType == AUDIO_STREAM_TYPE) {
+      console.log('in audio config ')
+      console.log(this.audioTrack.codec)
+      console.log(this.audioTrack.audio.sample_rate)
+      console.log(this.audioTrack.audio.channel_count)
+      console.log(this.source.getAudioSpecificConfig())
       return {
         codec: this.audioTrack.codec,
         sampleRate: this.audioTrack.audio.sample_rate,
@@ -160,10 +177,14 @@ export class MP4PullDemuxer extends PullDemuxerBase {
 
 class MP4Source {
   constructor(uri) {
+
     this.file = MP4Box.createFile();
+    console.log('uri')
+    // console.log(uri)
     this.file.onError = console.error.bind(console);
     this.file.onReady = this.onReady.bind(this);
     this.file.onSamples = this.onSamples.bind(this);
+
 
     debugLog('fetching file');
     fetch(uri).then(response => {
@@ -226,6 +247,19 @@ class MP4Source {
   getAvccBox() {
     // TODO: make sure this is coming from the right track.
     return this.file.moov.traks[0].mdia.minf.stbl.stsd.entries[0].avcC
+  }
+
+  getAudioSpecificConfig() {
+    // TODO: make sure this is coming from the right track.
+
+    // 0x04 is the DecoderConfigDescrTag. Assuming MP4Box always puts this at position 0.
+    console.assert(this.file.moov.traks[0].mdia.minf.stbl.stsd.entries[0].esds.esd.descs[0].tag == 0x04);
+    // 0x40 is the Audio OTI, per table 5 of ISO 14496-1
+    console.assert(this.file.moov.traks[0].mdia.minf.stbl.stsd.entries[0].esds.esd.descs[0].oti == 0x40);
+    // 0x05 is the DecSpecificInfoTag
+    console.assert(this.file.moov.traks[0].mdia.minf.stbl.stsd.entries[0].esds.esd.descs[0].descs[0].tag == 0x05);
+
+    return this.file.moov.traks[0].mdia.minf.stbl.stsd.entries[0].esds.esd.descs[0].descs[0].data;
   }
 
  //source.start

@@ -332,6 +332,8 @@ onmessage = function (e) {
             console.log('webme-worker: case start is triggered')
             //metadata来自于主线程的webm_meatadata
             metadata = msg.webm_metadata;
+            console.log('metadata')
+            console.log(metadata);
             options = {
                 video_queue_limit: Infinity,
                 audio_queue_limit: Infinity,

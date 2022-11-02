@@ -61,7 +61,7 @@
     switch (msg.type){
     case 'initialize-done':
       console.log('demo: initialize-done')
-      await writer.start('video.webm');
+      await writer.start('video-transcode.webm');
       console.log('writer open over')
       myAudioContext.initialize();
     // audioController.initialize(e.data.sampleRate, e.data.channelCount,
@@ -82,7 +82,7 @@
     case 'exit':
       console.log('index: get message exit from demux decoder');
       //目前测试只是用一个视频轨道进行，如果要加入音频轨，需要将这里改为2
-      if (++num_exit === 1)
+      // if (++num_exit === 2)
         webm_worker.postMessage({type: 'end'});
       break;
     case 'terminate':
@@ -124,18 +124,19 @@ function onerror(e) {
                 //这里根据按钮是否被按下来决定是否要记录，现在改为需要记录，并且默认采用inmem记录的方式
                 // if (record_el.checked) {
                     const r = await writer.finish();
+                    console.log(r);
                     console.log(`Finished: Duration ${writer.duration}ms, Size ${writer.size} bytes`);
                     // if (inmem_el.checked) {
-                        const blob = new Blob(r, { type: 'video/webm' });
-                        const a = document.createElement('a');
-                        const filename = 'video-transcode.webm';
-                        a.textContent = filename;
-                        a.href = URL.createObjectURL(blob);
-                        a.download = filename;
-                        //这里可能会有问题，因为要直接操作document
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
+                        // const blob = new Blob(r, { type: 'video/webm' });
+                        // const a = document.createElement('a');
+                        // const filename = 'video-transcode.webm';
+                        // a.textContent = filename;
+                        // a.href = URL.createObjectURL(blob);
+                        // a.download = filename;
+                        // //这里可能会有问题，因为要直接操作document
+                        // document.body.appendChild(a);
+                        // a.click();
+                        // document.body.removeChild(a);
                     // } else {
                     //     rec_info.innerText += `, Filename ${writer.name}, Cues at ${r ? 'start' : 'end'}`;
                     // }
@@ -146,7 +147,7 @@ function onerror(e) {
                 // record_el.disabled = false;
                 // pcm_el.disabled = !record_el.checked;
                 // inmem_el.disabled = !record_el.checked;
-                demuxDecodeWorker.postMessage({type: 'terminate'});
+                // demuxDecodeWorker.postMessage({type: 'terminate'});
                 break;
 
             case 'start-stream':

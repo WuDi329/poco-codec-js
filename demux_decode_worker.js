@@ -13,10 +13,11 @@ let moduleLoadedResolver = null;
 let webmLoadedResolver = null;
 let videoTranscoder = null;
 let frameCount = 0;
-let playing = false;
+// let playing = false;
 
 //initialize部分的判断条件，只有当它为2时，才返回initialize-done
 let workerNum = 0;
+let exitNum = 0;
 
 //从worker中读到的Config
 let videoConfig = null;
@@ -39,8 +40,12 @@ function getMediaTimeMicroSeconds() {
 }
 
 const video_Worker = new Worker('./video_transcoder.js');
+const audio_Worker = new Worker('./audio_transcoder.js')
 video_Worker.onmessage = passdata
 video_Worker.onerror = er => console.error(er);
+
+audio_Worker.onmessage = passdata;
+audio_Worker.onerror = er => console.error(er);
 
 
 function passdata(ev){
@@ -55,14 +60,18 @@ function passdata(ev){
         //这里先不加入音频
       console.log('videoconfig')
       console.log(videoConfig)
-      if(++workerNum === 1){
+      console.log(workerNum);
+      if(++workerNum === 2){
+        console.log('in demux worker')
+        console.log(videoConfig);
+        console.log(audioConfig)
       self.postMessage({
         type: 'initialize-done',
         webm_stats_interval: 1000,
         webm_metadata: {
           max_cluster_duration: BigInt(2000000000),
           video: videoConfig,
-          // audio: audioConfig
+          audio: audioConfig
         }});
       }
       break;
@@ -73,8 +82,12 @@ function passdata(ev){
       })
       break;
     case 'exit':
-      console.log('decode worker: get exit from video-transcoder');
-      self.postMessage(msg);
+      console.log('decode worker: get exit from a transcoder');
+      if(++exitNum == 2){
+        video_Worker.terminate();
+        audio_Worker.terminate();
+        self.postMessage(msg);
+      }
       break;
     default:
       self.postMessage(msg, [msg.data])
@@ -105,9 +118,13 @@ self.addEventListener('message', async function(e) {
       video_Worker.postMessage({
         type: 'initialize'
       });
+      audio_Worker.postMessage({
+        type: 'initialize'
+      })
       // let videoReady = videoTranscoder.initialize(videoDemuxer, e.data.canvas, muxer);
       // await videoReady;
       console.log("demux_worker: videoTranscoder initialize begin")
+      console.log("demux_worker: audioTranscoder initialize begin")
       // console.log('initialize done');
       // this.postMessage({command: 'initialize-done'})
       break;
@@ -115,15 +132,19 @@ self.addEventListener('message', async function(e) {
       //这里目前只有一个video_worker，还有一个audio_worker等待添加
       video_Worker.postMessage({
         type: 'start-transcode'
+      });
+      audio_Worker.postMessage({
+        type: 'start-transcode'
       })
       break;
-    case 'terminate':
-      console.log('decode-worker: terminate触发');
-      video_Worker.terminate();
-      //这里先注释，理由同上
-      // audio_Worker.terminate();    
-      this.self.postMessage('terminate');
-      break;
+    // case 'terminate':
+    //   console.log('decode-worker: terminate触发');
+    //   // video_Worker.terminate();
+    //   // audio_Worker.terminate()
+    //   //这里先注释，理由同上
+    //   // audio_Worker.terminate();    
+    //   this.self.postMessage('terminate');
+    //   break;
     // 目前不需要这些其他情况
     // case 'play':
     //   playing = true;
