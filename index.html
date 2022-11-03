@@ -61,7 +61,8 @@
     switch (msg.type){
     case 'initialize-done':
       console.log('demo: initialize-done')
-      await writer.start('video-transcode.webm');
+      //这里使用无名式的初始化方法
+      await writer.start(null);
       console.log('writer open over')
       myAudioContext.initialize();
     // audioController.initialize(e.data.sampleRate, e.data.channelCount,
@@ -124,19 +125,19 @@ function onerror(e) {
                 //这里根据按钮是否被按下来决定是否要记录，现在改为需要记录，并且默认采用inmem记录的方式
                 // if (record_el.checked) {
                     const r = await writer.finish();
-                    console.log(r);
+                    // console.log(r);
                     console.log(`Finished: Duration ${writer.duration}ms, Size ${writer.size} bytes`);
                     // if (inmem_el.checked) {
-                        // const blob = new Blob(r, { type: 'video/webm' });
-                        // const a = document.createElement('a');
-                        // const filename = 'video-transcode.webm';
-                        // a.textContent = filename;
-                        // a.href = URL.createObjectURL(blob);
-                        // a.download = filename;
-                        // //这里可能会有问题，因为要直接操作document
-                        // document.body.appendChild(a);
-                        // a.click();
-                        // document.body.removeChild(a);
+                        const blob = new Blob(r, { type: 'video/webm' });
+                        const a = document.createElement('a');
+                        const filename = 'video-transcode.webm';
+                        a.textContent = filename;
+                        a.href = URL.createObjectURL(blob);
+                        a.download = filename;
+                        //这里可能会有问题，因为要直接操作document
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
                     // } else {
                     //     rec_info.innerText += `, Filename ${writer.name}, Cues at ${r ? 'start' : 'end'}`;
                     // }

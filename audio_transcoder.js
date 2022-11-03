@@ -66,12 +66,26 @@ onmessage = async function (e) {
   }
 }
 
+class SampleLock{
+  constructor(){
+    this.callback = null;
+    this.status = new Promise((resolve) => resolve(true));
+    this.lock = function(){
+      this.status = new Promise((resolve) => {this.callback = resolve})
+      // console.log('locked')
+    }
+    this.unlock = function(){
+      this.callback(true)
+    }
+  }
+}
+
 
 class AudioTranscoder {
   async initialize(demuxer, muxer) {
     this.fillInProgress = false;
     this.playing = false;
-
+    this.lock = new SampleLock();
     this.demuxer = demuxer;
     this.muxer = muxer;
     this.overaudio = false;
@@ -218,8 +232,9 @@ class AudioTranscoder {
   //这一步是audioDecoder的回调，通过观察控制台输出结果，可以确定的是audio data 和 getNextChunk得到的chunk是一一对应的。
   bufferAudioData(frame) {
     framecount++;
-    console.log('audio data count');
-    console.log(framecount);
+        //暂时去掉
+    // console.log('audio data count');
+    // console.log(framecount);
 
     // console.log('audio frame')
     // console.log(frame)
@@ -329,10 +344,13 @@ class AudioTranscoder {
   // }
 
   //这是自己写的encoder的回调，完成encode的过程后会自动给主线程发送信息
-  consumeAudioData(chunk) {
-    rechunkCount++;
-    console.log('rechunk count');
-    console.log(rechunkCount)
+  async consumeAudioData(chunk) {
+
+
+
+
+
+
     const data = new ArrayBuffer(chunk.byteLength);
     chunk.copyTo(data);
     self.postMessage({
@@ -342,6 +360,15 @@ class AudioTranscoder {
       is_key: true,
       data
     }, [data])
+
+    await this.lock.status;
+    this.lock.lock();
+    rechunkCount++;
+    this.lock.unlock();
+
+        //暂时去掉
+        console.log('rechunk count');
+        console.log(rechunkCount)
 
     if(!this.overaudio && this.encoder.encodeQueueSize === 0)
         this.fillDataBuffer();

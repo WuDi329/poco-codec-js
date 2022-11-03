@@ -67,6 +67,20 @@ onmessage = async function (e) {
   }
 }
 
+class SampleLock{
+  constructor(){
+    this.callback = null;
+    this.status = new Promise((resolve) => resolve(true));
+    this.lock = function(){
+      this.status = new Promise((resolve) => {this.callback = resolve})
+      // console.log('locked')
+    }
+    this.unlock = function(){
+      this.callback(true)
+    }
+  }
+}
+
 
 // Controls demuxing and decoding of the video track, as well as rendering
 // VideoFrames to canvas. Maintains a buffer of FRAME_BUFFER_TARGET_SIZE
@@ -77,10 +91,13 @@ class VideoTranscoder {
     this.frameBuffer = [];
     //是否在fillinprogress，默认是false
     this.fillInProgress = false;
+    // this.addProcess = false;
 
     this.demuxer = demuxer;
     this.muxer = muxer;
     this.over = false;
+
+    this.lock = new SampleLock();
     //根据VIDEO_STREAM_TYPE进行初始化，这里进行了demuxer的初始化
     await this.demuxer.initialize(VIDEO_STREAM_TYPE);
     const decodeconfig = this.demuxer.getDecoderConfig();
@@ -97,8 +114,6 @@ class VideoTranscoder {
     console.assert(VideoDecoder.isConfigSupported(decodeconfig))
     this.decoder.configure(decodeconfig);
    
-    
-
     this.init_resolver = null;
     // let promise = new Promise((resolver) => this.init_resolver = resolver );
     //初始化encoder
@@ -174,8 +189,8 @@ class VideoTranscoder {
               // console.log(this.decoder.decodeQueueSize)
       let chunk = await this.demuxer.getNextChunk();
 
-      // console.log('get chunk')
-      // console.log(chunk);
+      console.log('get chunk')
+      console.log(chunk);
       if(!chunk){
         this.over = true; 
       }
@@ -202,8 +217,6 @@ class VideoTranscoder {
   //将frame buffer起来
   bufferFrame(frame) {
     debugLog(`bufferFrame(${frame.timestamp})`);
-    // frameCount ++;
-    // console.log(frameCount);
     this.encoder.encode(frame);
     //这里注释了，为了暂停bufferframe
     // this.fillFrameBuffer();
@@ -211,9 +224,8 @@ class VideoTranscoder {
     // this.frameBuffer.push(frame);
   }
 
-  consumeFrame(chunk) {
-    framecount++;
-    // console.log(framecount);
+  //有没有什么办法记录最后一个frame呢
+  async consumeFrame(chunk) {
     //这个chunk的duration属性为0，但是也许可以通过timestamp计算出来？不知道会不会有影响？
     // console.log(chunk);
     const data = new ArrayBuffer(chunk.byteLength);
@@ -226,15 +238,26 @@ class VideoTranscoder {
       is_key: chunk.type === 'key',
       data
     }, [data]);
+
+    
+    await this.lock.status;
+    this.lock.lock();
+    framecount++;
+    this.lock.unlock();
+
+    console.log('video framecount')
+    console.log(framecount);
+    
     //调用的主要地方，consumeFrame处
     if(!this.over && this.encoder.encodeQueueSize === 0)
         this.fillFrameBuffer();
+    
     if(this.encoder.encodeQueueSize === 0 && this.decoder.decodeQueueSize === 0 && this.over){
       // console.log(framecount)
       // console.log('video framecount');
       // console.log(chunkCount);
       // console.log('video chunkCount');
-      if(framecount === (chunkCount-1)){
+      if(framecount === chunkCount-1){
         console.log('current video')
         console.log(framecount)
         console.log(chunkCount)
