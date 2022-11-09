@@ -88,6 +88,7 @@ export async function supported_video_configs(constraints, all_if_no_webcodecs) 
 export async function max_video_config(constraints, all_if_no_webcodecs) {
     constraints = constraints || {};
     for (let res of resolutions) {
+        //如果constraints的ratio为false并且width，height均为false
         if ((!constraints.ratio || (res.ratio === constraints.ratio)) &&
             (!constraints.width || (res.width <= constraints.width)) &&
             (!constraints.height || (res.height <= constraints.height))) {

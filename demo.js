@@ -12,7 +12,7 @@ export class WebmMuxer{
         codec: 'vp09.00.10.08.01',
         width: 640,
         height: 360,
-        bitrate: 2500 * 1000,
+        bitrate: 356000,
         framerate: 30,
         latencyMode: 'realtime'
     }

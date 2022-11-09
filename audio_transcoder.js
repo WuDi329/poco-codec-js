@@ -102,6 +102,7 @@ class AudioTranscoder {
     const decodeconfig = this.demuxer.getDecoderConfig();
     // console.log('audio decodeconfig');
     // console.log(decodeconfig)
+    //从decoder获得的sampleRate以及numberOfChannels直接赋给了this
     this.sampleRate = decodeconfig.sampleRate;
     this.channelCount = decodeconfig.numberOfChannels;
 
@@ -117,6 +118,7 @@ class AudioTranscoder {
       output: this.consumeAudioData.bind(this),
       error: e => console.error(e)
     })
+    //当转为webm格式时，音频的config直接写死
     const encodeconfig = {
       codec: 'opus',
       bitrate: 128 * 1000,

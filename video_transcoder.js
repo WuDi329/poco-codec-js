@@ -10,6 +10,7 @@ const FRAME_BUFFER_TARGET_SIZE = 5;
 const ENABLE_DEBUG_LOGGING = false;
 var framecount = 0;
 var chunkCount = 0;
+var rechunkCount = 0;
 
 let videoTranscoder = null;
 
@@ -196,6 +197,7 @@ class VideoTranscoder {
       }
       else{ 
         chunkCount++;
+        console.log("onsamples : video encodedframe number is "+ chunkCount)
         this.decoder.decode(chunk);
       }
     }
@@ -215,8 +217,13 @@ class VideoTranscoder {
   }
 
   //将frame buffer起来
-  bufferFrame(frame) {
-    debugLog(`bufferFrame(${frame.timestamp})`);
+async   bufferFrame(frame) {
+    await this.lock.status;
+    this.lock.lock();
+    framecount++;
+    this.lock.unlock();
+    console.log('after decode, videoframe timestamp is '+ frame.timestamp)
+    // debugLog(`bufferFrame(${frame.timestamp})`);
     this.encoder.encode(frame);
     //这里注释了，为了暂停bufferframe
     // this.fillFrameBuffer();
@@ -239,14 +246,12 @@ class VideoTranscoder {
       data
     }, [data]);
 
-    
     await this.lock.status;
     this.lock.lock();
-    framecount++;
+    rechunkCount++;
     this.lock.unlock();
-
-    console.log('video framecount')
-    console.log(framecount);
+    console.log('after encode, current rechunk timestamp is '+ chunk.timestamp)
+    
     
     //调用的主要地方，consumeFrame处
     if(!this.over && this.encoder.encodeQueueSize === 0)
@@ -257,14 +262,16 @@ class VideoTranscoder {
       // console.log('video framecount');
       // console.log(chunkCount);
       // console.log('video chunkCount');
-      if(framecount === chunkCount-1){
-        console.log('current video')
-        console.log(framecount)
-        console.log(chunkCount)
-        console.log('post exit message to self...')
-        console.log(framecount)
-        self.postMessage({type: 'exit'})
-      }
+
+      //这里以下先进行注释，主要是为了看总共有多少个frame
+      // if(framecount === chunkCount-1){
+      //   console.log('current video')
+      //   console.log(framecount)
+      //   console.log(chunkCount)
+      //   console.log('post exit message to self...')
+      //   console.log(framecount)
+      //   self.postMessage({type: 'exit'})
+      // }
     }
     // console.log(data);
     // console.log(data);
