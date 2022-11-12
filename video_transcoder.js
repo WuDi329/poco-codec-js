@@ -36,12 +36,18 @@ onmessage = async function (e) {
     case 'initialize':
       console.log('video transcoder: case initialize is triggered');
       let demuxer = await import('./mp4_demuxer.js');
-      let videoDemuxer =  new demuxer.MP4PullDemuxer('./bbb_video_avc_frag.mp4');
+      // let videoDemuxer =  new demuxer.MP4PullDemuxer('./ljh264.mp4');
+      //这里不传入文件名字了
+      let videoDemuxer =  new demuxer.MP4PullDemuxer();
       let WebmMuxer = await import ('./demo.js');
       let muxer = new WebmMuxer.WebmMuxer();
+
+      console.log('video transcoder: buffer is')
+      console.log(msg.buffer);
+
       //这里可能要重写
       //将提取出几个config的方法单独挪出来，直接将config传入initialize
-      const encodeconfig = await videoTranscoder.initialize(videoDemuxer, muxer);
+      const encodeconfig = await videoTranscoder.initialize(videoDemuxer, muxer, msg.buffer);
       console.log("video transcoder: Transcoder initialize finished");
       console.log('video transcoder: initialize done');
       this.self.postMessage({
@@ -88,7 +94,7 @@ class SampleLock{
 // decoded frames for future rendering.
 //控制了解复用和对视频轨道的解码
 class VideoTranscoder {
-  async initialize(demuxer, muxer) {
+  async initialize(demuxer, muxer, buffer) {
     this.frameBuffer = [];
     //是否在fillinprogress，默认是false
     this.fillInProgress = false;
@@ -99,13 +105,20 @@ class VideoTranscoder {
     this.over = false;
 
     this.lock = new SampleLock();
+
+    console.log('video init: buffer is');
+    console.log(buffer);
     //根据VIDEO_STREAM_TYPE进行初始化，这里进行了demuxer的初始化
-    await this.demuxer.initialize(VIDEO_STREAM_TYPE);
+    //感觉这个buffer也许应该在demux_worker就搞定了
+    
+    await this.demuxer.initialize(VIDEO_STREAM_TYPE, buffer);
     const decodeconfig = this.demuxer.getDecoderConfig();
     const encodeconfig = await this.muxer.getEncoderConfig();
     // console.log(decodeconfig);
     console.log('encodeconfig');
     console.log(encodeconfig)
+
+
 
     this.decoder = new VideoDecoder({
       //每进来一个frame，将其缓存进frameBuffer中
@@ -190,14 +203,14 @@ class VideoTranscoder {
               // console.log(this.decoder.decodeQueueSize)
       let chunk = await this.demuxer.getNextChunk();
 
-      console.log('get chunk')
-      console.log(chunk);
+      // console.log('get chunk')
+      // console.log(chunk);
       if(!chunk){
         this.over = true; 
       }
       else{ 
         chunkCount++;
-        console.log("onsamples : video encodedframe number is "+ chunkCount)
+        // console.log("onsamples : video encodedframe number is "+ chunkCount)
         this.decoder.decode(chunk);
       }
     }
@@ -222,7 +235,8 @@ async   bufferFrame(frame) {
     this.lock.lock();
     framecount++;
     this.lock.unlock();
-    console.log('after decode, videoframe timestamp is '+ frame.timestamp)
+    // console.log('framecount is '+ framecount)
+    // console.log('after decode, videoframe timestamp is '+ frame.timestamp)
     // debugLog(`bufferFrame(${frame.timestamp})`);
     this.encoder.encode(frame);
     //这里注释了，为了暂停bufferframe
@@ -250,7 +264,8 @@ async   bufferFrame(frame) {
     this.lock.lock();
     rechunkCount++;
     this.lock.unlock();
-    console.log('after encode, current rechunk timestamp is '+ chunk.timestamp)
+    // console.log("rechunk count is"+ rechunkCount)
+    // console.log('after encode, current rechunk timestamp is '+ chunk.timestamp)
     
     
     //调用的主要地方，consumeFrame处
@@ -264,14 +279,14 @@ async   bufferFrame(frame) {
       // console.log('video chunkCount');
 
       //这里以下先进行注释，主要是为了看总共有多少个frame
-      // if(framecount === chunkCount-1){
-      //   console.log('current video')
-      //   console.log(framecount)
-      //   console.log(chunkCount)
-      //   console.log('post exit message to self...')
-      //   console.log(framecount)
-      //   self.postMessage({type: 'exit'})
-      // }
+      if(framecount === chunkCount-1){
+        console.log('current video')
+        console.log(framecount)
+        console.log(chunkCount)
+        console.log('post exit message to self...')
+        console.log(framecount)
+        self.postMessage({type: 'exit'})
+      }
     }
     // console.log(data);
     // console.log(data);

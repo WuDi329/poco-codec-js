@@ -22,15 +22,19 @@ class PullDemuxerBase {
 export class MP4PullDemuxer extends PullDemuxerBase {
   constructor(fileUri) {
     super();
+    if(fileUri)
     this.fileUri = fileUri;
   }
 
-  async initialize(streamType) {
-    
+  async initialize(streamType, buffer) {
+    console.log('mp4 demuxer init: buffer is');
+    console.log(buffer);
+    // this.buffer = buffer;
     // console.log('this.fileUri')
     // console.log(this.fileUri)
-    this.source = new MP4Source(this.fileUri);
+    this.source = new MP4Source(buffer)
     // console.log(streamType);
+    console.log('mp4 demuxer: finish source')
 
     this.readySamples = [];
     this.over = false;
@@ -38,14 +42,14 @@ export class MP4PullDemuxer extends PullDemuxerBase {
     this.streamType = streamType;
 
     
-    // if(streamType === 0)
-    //   console.log('audio ready for tracks')
+    if(streamType === 0)
+      console.log('audio ready for tracks')
 
     //不管是videotrack还是audiotrack都ready了
     await this._tracksReady();
 
-    // if(streamType === 0)
-    //   console.log('audio finished tracks')
+    if(streamType === 0)
+      console.log('audio finished tracks')
 
     if (this.streamType == AUDIO_STREAM_TYPE) {
       this._selectTrack(this.audioTrack);
@@ -107,8 +111,12 @@ export class MP4PullDemuxer extends PullDemuxerBase {
   }
 
   async _tracksReady() {
+    console.log('start of tracksready, source is')
+    console.log(this.source);
     let info = await this.source.getInfo();
     this.videoTrack = info.videoTracks[0];
+    console.log('in tracksready');
+    console.log(info);
     this.audioTrack = info.audioTracks[0];
   }
 
@@ -176,45 +184,85 @@ export class MP4PullDemuxer extends PullDemuxerBase {
 }
 
 class MP4Source {
-  constructor(uri) {
 
+  constructor(buffer){
     this.file = MP4Box.createFile();
-    console.log('uri')
-    // console.log(uri)
     this.file.onError = console.error.bind(console);
     this.file.onReady = this.onReady.bind(this);
     this.file.onSamples = this.onSamples.bind(this);
+    // const file = new Blob([buffer], "video/mp4")
+    console.log('mp4 source: buffer is')
+    console.log(buffer)
+    const blob = new Blob([buffer]);
+    const reader = blob.stream().getReader();
+    let offset = 0;
+    let mp4File = this.file;
 
-
-    debugLog('fetching file');
-    fetch(uri).then(response => {
-      debugLog('fetch responded');
-      const reader = response.body.getReader();
-      let offset = 0;
-      let mp4File = this.file;
-
-      function appendBuffers({done, value}) {
-        if(done) {
-          mp4File.flush();
-          return;
-        }
-
-        let buf = value.buffer;
-        buf.fileStart = offset;
-
-        offset += buf.byteLength;
-
-        mp4File.appendBuffer(buf);
-
-        return reader.read().then(appendBuffers);
+    function appendBuffers({done, value}) {
+      if(done) {
+        mp4File.flush();
+        return;
       }
 
+      let buf = value.buffer;
+      buf.fileStart = offset;
+
+      offset += buf.byteLength;
+
+      mp4File.appendBuffer(buf);
+
       return reader.read().then(appendBuffers);
-    })
+    }
+
+    reader.read().then(appendBuffers);
+    console.log('mp4file is ...')
+    console.log(mp4File)
 
     this.info = null;
     this._info_resolver = null;
   }
+
+
+  //这里的constructor先注释，为了保证只跑上面的部分
+  // constructor(uri) {
+
+  //   this.file = MP4Box.createFile();
+  //   console.log('uri')
+  //   // console.log(uri)
+  //   this.file.onError = console.error.bind(console);
+  //   this.file.onReady = this.onReady.bind(this);
+  //   this.file.onSamples = this.onSamples.bind(this);
+
+
+  //   debugLog('fetching file');
+  //   fetch(uri).then(response => {
+  //     debugLog('fetch responded');
+  //     const reader = response.body.getReader();
+  //     let offset = 0;
+  //     let mp4File = this.file;
+
+  //     function appendBuffers({done, value}) {
+  //       if(done) {
+  //         mp4File.flush();
+  //         return;
+  //       }
+
+  //       let buf = value.buffer;
+  //       buf.fileStart = offset;
+
+  //       offset += buf.byteLength;
+
+  //       mp4File.appendBuffer(buf);
+
+  //       return reader.read().then(appendBuffers);
+  //     }
+
+  //     return reader.read().then(appendBuffers);
+  //   })
+
+  //   this.info = null;
+  //   this._info_resolver = null;
+  // }
 
   onReady(info) {
     // TODO: Generate configuration changes.
@@ -250,16 +298,18 @@ class MP4Source {
   }
 
   getAudioSpecificConfig() {
+
+    // console.log(this.file.moov.traks[0]);
     // TODO: make sure this is coming from the right track.
 
     // 0x04 is the DecoderConfigDescrTag. Assuming MP4Box always puts this at position 0.
-    console.assert(this.file.moov.traks[0].mdia.minf.stbl.stsd.entries[0].esds.esd.descs[0].tag == 0x04);
+    console.assert(this.file.moov.traks[1].mdia.minf.stbl.stsd.entries[0].esds.esd.descs[0].tag == 0x04);
     // 0x40 is the Audio OTI, per table 5 of ISO 14496-1
-    console.assert(this.file.moov.traks[0].mdia.minf.stbl.stsd.entries[0].esds.esd.descs[0].oti == 0x40);
+    console.assert(this.file.moov.traks[1].mdia.minf.stbl.stsd.entries[0].esds.esd.descs[0].oti == 0x40);
     // 0x05 is the DecSpecificInfoTag
-    console.assert(this.file.moov.traks[0].mdia.minf.stbl.stsd.entries[0].esds.esd.descs[0].descs[0].tag == 0x05);
+    console.assert(this.file.moov.traks[1].mdia.minf.stbl.stsd.entries[0].esds.esd.descs[0].descs[0].tag == 0x05);
 
-    return this.file.moov.traks[0].mdia.minf.stbl.stsd.entries[0].esds.esd.descs[0].descs[0].data;
+    return this.file.moov.traks[1].mdia.minf.stbl.stsd.entries[0].esds.esd.descs[0].descs[0].data;
   }
 
  //source.start

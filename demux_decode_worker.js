@@ -52,15 +52,24 @@ function passdata(ev){
   const msg = ev.data;
   switch (msg.type) {
     case 'initialize-done':
-      console.log('demux_worker:get transcoder done')
+      // console.log('demux_worker:get transcoder done')
       if(msg.workerType === 'video')
         videoConfig = msg.config;
       else
         audioConfig = msg.config;
         //这里先不加入音频
-      console.log('videoconfig')
-      console.log(videoConfig)
-      console.log(workerNum);
+      // console.log('videoconfig')
+      // console.log(videoConfig)
+      // console.log(workerNum);
+      
+      //妥协的产物：暂时注释audio部分
+      // self.postMessage({
+      //   type: 'initialize-done',
+      //   webm_stats_interval: 1000,
+      //   webm_metadata: {
+      //     max_cluster_duration: BigInt(2000000000),
+      //     video: videoConfig,
+      //   }});
       if(++workerNum === 2){
         console.log('in demux worker')
         console.log(videoConfig);
@@ -115,11 +124,16 @@ self.addEventListener('message', async function(e) {
   switch (msg.type) {
     case 'initialize':
       //在transcoder中执行initialize
+      //为了测试天线宝宝，先把audio注释
+      console.log('demux worker: buffer is');
+      console.log(msg.buffer)
       video_Worker.postMessage({
-        type: 'initialize'
+        type: 'initialize',
+        buffer: msg.buffer
       });
       audio_Worker.postMessage({
-        type: 'initialize'
+        type: 'initialize',
+        buffer: msg.buffer
       })
       // let videoReady = videoTranscoder.initialize(videoDemuxer, e.data.canvas, muxer);
       // await videoReady;
@@ -133,6 +147,7 @@ self.addEventListener('message', async function(e) {
       video_Worker.postMessage({
         type: 'start-transcode'
       });
+      ////为了测试天线宝宝，先把audio注释
       audio_Worker.postMessage({
         type: 'start-transcode'
       })

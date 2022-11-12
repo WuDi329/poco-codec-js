@@ -34,13 +34,18 @@ onmessage = async function (e) {
     case 'initialize':
       console.log('audio transcoder: case initialize is triggered');
       let demuxer = await import('./mp4_demuxer.js');
-      let audioDemuxer =  new demuxer.MP4PullDemuxer('./bbb_audio_aac_frag.mp4');
+      // let audioDemuxer =  new demuxer.MP4PullDemuxer('./newh264.mp4');
+      let audioDemuxer =  new demuxer.MP4PullDemuxer();
       let WebmMuxer = await import ('./demo.js');
       let muxer = new WebmMuxer.WebmMuxer();
       //这里可能要重写
       //将提取出几个config的方法单独挪出来，直接将config传入initialize
+      console.log('audio transcoder: buffer is')
+      console.log(msg.buffer);
+
+
       console.log('audio_worker: waiting for encodeconfig')
-      const encodeconfig = await audioTranscoder.initialize(audioDemuxer, muxer);
+      const encodeconfig = await audioTranscoder.initialize(audioDemuxer, muxer, msg.buffer);
       console.log('audio_worker: getting encodeconfig')
       console.log("audio transcoder: audioTranscoder initialize finished");
       console.log('initialize done');
@@ -82,7 +87,7 @@ class SampleLock{
 
 
 class AudioTranscoder {
-  async initialize(demuxer, muxer) {
+  async initialize(demuxer, muxer, buffer) {
     this.fillInProgress = false;
     this.playing = false;
     this.lock = new SampleLock();
@@ -90,9 +95,12 @@ class AudioTranscoder {
     this.muxer = muxer;
     this.overaudio = false;
 
-    // console.log('audiotranscoder ready for initialize demuxer')
-    await this.demuxer.initialize(AUDIO_STREAM_TYPE);
-    // console.log('audiotranscoder finish initialize demuxer')
+    console.log('audio init: buffer is');
+    console.log(buffer)
+
+    console.log('audiotranscoder ready for initialize demuxer')
+    await this.demuxer.initialize(AUDIO_STREAM_TYPE, buffer);
+    console.log('audiotranscoder finish initialize demuxer')
 
     this.decoder = new AudioDecoder({
       output: this.bufferAudioData.bind(this),
@@ -241,7 +249,7 @@ class AudioTranscoder {
     // console.log('audio frame')
     // console.log(frame)
     
-    debugLog(`bufferFrame(${frame.timestamp})`);
+    // debugLog(`bufferFrame(${frame.timestamp})`);
     // frameCount ++;
     // console.log(frameCount);
     this.encoder.encode(frame);
@@ -369,8 +377,8 @@ class AudioTranscoder {
     this.lock.unlock();
 
         //暂时去掉
-        console.log('rechunk count');
-        console.log(rechunkCount)
+        // console.log('rechunk count');
+        // console.log(rechunkCount)
 
     if(!this.overaudio && this.encoder.encodeQueueSize === 0)
         this.fillDataBuffer();
