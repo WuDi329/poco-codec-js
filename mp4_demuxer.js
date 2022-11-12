@@ -32,7 +32,8 @@ export class MP4PullDemuxer extends PullDemuxerBase {
     // this.buffer = buffer;
     // console.log('this.fileUri')
     // console.log(this.fileUri)
-    this.source = new MP4Source(buffer)
+    //这里是利用buffer创建了source，也许是
+    this.source = new MP4Source(buffer);
     // console.log(streamType);
     console.log('mp4 demuxer: finish source')
 

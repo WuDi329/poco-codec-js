@@ -7,6 +7,9 @@
 // import { WebMWriter } from './webm-writer.js';
 // importScripts('./webm-writer.js')
 
+// importScripts('./mp4_demuxer.js')
+// importScripts('./mp4box.all.min.js')
+
 let lastMediaTimeCapturePoint = 0;
 let lastMediaTimeSecs = 0;
 let moduleLoadedResolver = null;
@@ -127,14 +130,19 @@ self.addEventListener('message', async function(e) {
       //为了测试天线宝宝，先把audio注释
       console.log('demux worker: buffer is');
       console.log(msg.buffer)
+      // const source = new MP4Source(msg.buffer)
+      const buffer = msg.buffer
       video_Worker.postMessage({
         type: 'initialize',
+        // source: source
         buffer: msg.buffer
       });
+      //可以考虑提高性能：msg.buffer这里需要进行深度拷贝一次
       audio_Worker.postMessage({
         type: 'initialize',
+        // source: source
         buffer: msg.buffer
-      })
+      }, [msg.buffer])
       // let videoReady = videoTranscoder.initialize(videoDemuxer, e.data.canvas, muxer);
       // await videoReady;
       console.log("demux_worker: videoTranscoder initialize begin")

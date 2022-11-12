@@ -95,8 +95,8 @@ class AudioTranscoder {
     this.muxer = muxer;
     this.overaudio = false;
 
-    console.log('audio init: buffer is');
-    console.log(buffer)
+    // console.log('audio init: buffer is');
+    // console.log(buffer)
 
     console.log('audiotranscoder ready for initialize demuxer')
     await this.demuxer.initialize(AUDIO_STREAM_TYPE, buffer);

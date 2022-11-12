@@ -42,8 +42,8 @@ onmessage = async function (e) {
       let WebmMuxer = await import ('./demo.js');
       let muxer = new WebmMuxer.WebmMuxer();
 
-      console.log('video transcoder: buffer is')
-      console.log(msg.buffer);
+      // console.log('video transcoder: buffer is')
+      // console.log(msg.buffer);
 
       //这里可能要重写
       //将提取出几个config的方法单独挪出来，直接将config传入initialize
@@ -106,8 +106,8 @@ class VideoTranscoder {
 
     this.lock = new SampleLock();
 
-    console.log('video init: buffer is');
-    console.log(buffer);
+    // console.log('video init: buffer is');
+    // console.log(buffer);
     //根据VIDEO_STREAM_TYPE进行初始化，这里进行了demuxer的初始化
     //感觉这个buffer也许应该在demux_worker就搞定了
     
